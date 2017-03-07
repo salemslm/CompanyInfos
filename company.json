@@ -1,0 +1,15 @@
+{
+  "siretId" : 35256798600026,
+  "companyName" : "DENTSU AEGIS NETWORK FRANCE",
+  "Fulladdress":{
+    "address": "	4 PLACE DE SAVERNE",
+    "postalCode":   92400,
+    "city": "Courbevoie",
+    "country": "FRANCE"
+  },
+
+    "naf":  "7010Z",
+    "trancheEffectifs": "300 à 399 salariés",
+    "natureEtablissement": "siege"
+
+}

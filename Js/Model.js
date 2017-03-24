@@ -7,137 +7,154 @@ var csv = require("fast-csv");
 
 var app = express();
 
-
-
+var inputCompanies = [];
+var resultCompanies = [["SIRET", "Nom", "Addresse", "Code Postal", "Ville", "Pays", "code NAF", "Nature de l'etablissement"]];
 
 csv
-.fromPath("companies.csv")
+.fromPath("companies.csv", {headers : true} )
 .on("data", function(arrayCompanies){
-  console.log(arrayCompanies);
-
+  inputCompanies.push(arrayCompanies);
 
 })
 .on("end", function(){
   console.log("done");
 
+  //console.log(inputCompanies);
 
+  //console.log(inputCompanies);
 
-// J'ai cette information :
-siret =		50235330300014;
-// 66204244937404; BNP Paribas
+  // J'ai cette information :
 
-var codeNAF, companyName, address, postalCode, city, pays, natureEtablissement;
+  // 66204244937404; BNP Paribas
 
-/*
-// ou  ca :
-// 80238479200015
-// ou ca :
-// 802384792
-// ou ca :
-// 334  3453 345   23
-*/
-//get SIREN and not SIRET.
-url = 'http://www.societe.com/cgi-bin/fiche/?rncs='+ siret.toString().substring(0, siret.toString().length - 5);
-console.log("Recherche du nom à partir du SIRET démarrée..");
-console.log("Redirection sur " + url + " ...");
-request(url, function (error, response, body) {
-  //  console.log('body:', body); // Print the HTML
-  if(!error){
-    console.log("Redirection effectuée.");
-    var $ = cheerio.load(body);
+  var codeNAF, companyName, address, postalCode, city, pays, natureEtablissement;
 
-    $('#identite_deno').filter(function(){
-      var data = $(this);
-      companyName = data.text();
-    })
+  /*
+  // ou  ca :
+  // 80238479200015
+  // ou ca :
+  // 802384792
+  // ou ca :
+  // 334  3453 345   23
+  */
+  //get SIREN and not SIRET.
 
-    companyName = cleanName(companyName);
-    console.log("Nom retrouvé : " + companyName);
-    //Then we see the desired esablissement.
-    urlEtablissement = "http://www.societe.com/etablissements/" + companyName + "-" + siret.toString().substring(0, siret.toString().length - 5) + ".html";
-    console.log("Redirection vers " + urlEtablissement + " ...");
-    request(urlEtablissement, function (error, response, body) {
-      var $ = cheerio.load(body)
+  for(var i = 0 ; i<inputCompanies.length; i++){
 
+    siret  = inputCompanies[i].SIRET;
+  url = 'http://www.societe.com/cgi-bin/fiche/?rncs='+ siret.toString().substring(0, siret.toString().length - 5);
+  //console.log("Recherche du nom à partir du SIREN démarrée..");
+  //console.log("Redirection sur " + url + " ...");
+  request(url, function (error, response, body) {
+    if(!error){
+      //console.log("Redirection effectuée.");
+      var $ = cheerio.load(body);
 
-      //console.log('body:', body); // Print the HTML
-      console.log("Redirection effectuée.");
-      $('#etabs').filter(function(){
+      $('#identite_deno').filter(function(){
         var data = $(this);
-        //First Siret
-        data = data.children();
-        var i = 1;
-        //While the siret is'nt found
-        while (data.children().children().first().next().next().next().children().first().next().text() != siret) {
-          data = data.next();
-          //console.log(i);
+        companyName = data.text();
+      })
 
-          console.log(data.children().children().first().next().next().next().children().first().next().text());
-          //i++;
+      companyName = cleanName(companyName);
+      //console.log("Nom retrouvé : " + companyName);
 
-        }
-        urlEnd = data.children().children().first().next().next().next().children().first().next().children().first().attr('href');
+      //Then we see the desired etablissement.
+      urlEtablissement = "http://www.societe.com/etablissements/" + companyName + "-" + siret.toString().substring(0, siret.toString().length - 5) + ".html";
+      //console.log("Redirection vers " + urlEtablissement + " ...");
+      console.log(urlEtablissement);
+      request(urlEtablissement, function (error, response, body) {
+        var $ = cheerio.load(body);
+
+        //console.log("Redirection effectuée.");
+        $('#etabs').filter(function(){
+          var data = $(this);
+
+          //First Siret
+          data = data.children();
+          var i = 1;
+          //While the siret is'nt found
+          while (data.children().children().first().next().next().next().children().first().next().text() != siret) {
+            data = data.next();
+
+            console.log(data.children().children().first().next().next().next().children().first().next().text());
+
+          }
+          urlEnd = data.children().children().first().next().next().next().children().first().next().children().first().attr('href');
+        });
+        //var datatest = $("#etab2").find("tbody > tr:nth-child(1) > td:nth-child(2) > a");
+
+
+        urlSiret = "http://www.societe.com" + urlEnd;
+        //Maintenant que nous avons retrouvé l'entreprise, nous allons sur l'url de cette entreprise et allons scraper tout ca.
+        //console.log(urlSiret);
+        request(urlSiret, function (error, response, html) {
+
+        //  console.log("Redirection vers : " + urlSiret + "...");
+          if(!error){
+
+            var $ = cheerio.load(html)
+
+            cheerioTableparser($);
+
+            var table = $('#etab').parsetable();
+
+            address = findValue(table, "Adresse");
+            postalCode = findValue(table, "Code postal");
+            city = findValue(table, "Ville");
+            pays = findValue(table, "Pays");
+            codeNAF = findValue(table, "Code ape (NAF)");
+            natureEtablissement = findValue(table, "Nature de l&apos;&#xFFFD;tablissement");
+            companyName = findValue(table, "Nom");
+
+            // console.log(address);
+            // console.log(postalCode);
+            // console.log(city);
+            // console.log(pays);
+            // console.log(codeNAF);
+            // console.log(natureEtablissement);
+
+            resultCompanies.push([siret, companyName, address, postalCode, city, pays, codeNAF, natureEtablissement]);
+            var ws = fs.createWriteStream("resultCompanies.csv");
+            csv
+            .write(resultCompanies, {headers: true})
+            .pipe(ws);
+
+            console.log(companyName +" (" + i + "/" + inputCompanies.length + ") scrapped.");
+
+          }
+          else {
+            console.log("Erreur de connexion sur lien : " + urlSiret );
+          }
+
+
+
+
+          //Ending Third callback
+        });
+
+
+        //Ending Second callback
       });
-      //var datatest = $("#etab2").find("tbody > tr:nth-child(1) > td:nth-child(2) > a");
-      //console.log(datatest.text());
 
 
-      urlSiret = "http://www.societe.com" + urlEnd;
-      //Maintenant que nous avons retrouvé l'entreprise, nous allons sur l'url de cette entreprise et allons scraper tout ca.
-      console.log(urlSiret);
-      request(urlSiret, function (error, response, html) {
+    }
+    else{
+      console.log("Erreur de connexion" );
+    }
 
-        console.log("Redirection vers : " + urlSiret + "...");
-        if(!error){
+    //Ending first callback
+  });
 
-          var $ = cheerio.load(html)
-
-          cheerioTableparser($);
-
-          var table = $('#etab').parsetable();
-
-          address = findValue(table, "Adresse");
-          postalCode = findValue(table, "Code postal");
-          city = findValue(table, "Ville");
-          pays = findValue(table, "Pays");
-          codeNAF = findValue(table, "Code ape (NAF)");
-          natureEtablissement = findValue(table, "Nature de l&apos;&#xFFFD;tablissement");
-
-          console.log(address);
-          console.log(postalCode);
-          console.log(city);
-          console.log(pays);
-          console.log(codeNAF);
-          console.log(natureEtablissement);
+//Fin du For
+}
 
 
-        }
-        else {
-          console.log("Erreur de connexion sur lien : " + urlSiret );
-        }
 
 
-        //console.log(dataa.text());
+}); //Ending CSV Parsing callback
 
 
-//Ending Third callback
-      });
 
-
-//Ending Second callback
-    });
-
-
-  }
-  else{
-    console.log("Erreur de connexion" );
-  }
-
-//Ending first callback
-});
-
-//Ending CSV Parsing callback
-});
 
 
 function findValue(tablee, text){

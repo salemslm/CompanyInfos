@@ -29,7 +29,7 @@ csv
   console.log("done");
 
   //Call our recursive function.
-  getCompanyForLine(0);
+  getCompanyForLine(50);
 
 
 }); //Ending CSV Parsing callback
@@ -121,8 +121,24 @@ function getCompanyForLine(i) {
               city = findValueAfterThisSiretIndex(table, "Ville", indexOfSiret);
               pays = findValueAfterThisSiretIndex(table, "Pays", indexOfSiret);
               codeNAF = findValueAfterThisSiretIndex(table, "Code ape (NAF)", indexOfSiret);
-              natureEtablissement = findValueAfterThisSiretIndex(table, "Nature de l&apos;&#xFFFD;tablissement", indexOfSiret);
-              //companyName = findValueAfterThisSiretIndex(table, "Nom", indexOfSiret);
+
+              natureEtablissement = findValueAfterThisSiretIndex(table, "Nature de l\'�tablissement", indexOfSiret);
+
+              if(findValueAfterThisSiretIndex(table, "Nom", indexOfSiret) == "Unknown" || findValueAfterThisSiretIndex(table, "Nom", indexOfSiret) == "unkno"){
+
+                $('#identite_deno').filter(function(){
+                  var data = $(this);
+                  companyName = data.text();
+                })
+                companyName = companyName.substring(0, companyName.length - 2);
+
+
+
+              }
+              else {
+                companyName = findValueAfterThisSiretIndex(table, "Nom", indexOfSiret)
+
+              }
 
             });
 
@@ -138,7 +154,7 @@ function getCompanyForLine(i) {
             console.log(companyName +" (" + i + "/" + inputCompanies.length + ") scrapped.");
 
             //Go to the next company.
-            uploader(i+1);
+            getCompanyForLine(i+1);
 
             var ws = fs.createWriteStream("resultCompanies.csv");
             csv
@@ -183,7 +199,7 @@ function findIndexOfSIRET(table, siret){
 function findValueAfterThisSiretIndex(tablee, text, siretIndex){
   var timesFoundAddress = 0;
   for(i = siretIndex; i < tablee[0].length; i++){
-
+    //console.log(tablee[0]);
     //The problem with Addresse is that this Key is quoted 2 times in the page. We want the second one and not the First one.
     switch (tablee[0][i]) {
       case "Adresse" :

@@ -1,18 +1,24 @@
-var express = require('express');
 var fs = require('fs');
 var request = require('request');
 var cheerio = require('cheerio');
 var cheerioTableparser = require('cheerio-tableparser');
 var csv = require("fast-csv");
-var urlEnd;
-var app = express();
-var firmapi;
+
 var inputCompanies = [];
 var resultCompanies = [["SIRET", "Nom", "Addresse", "Code Postal", "Ville", "Pays", "code NAF", "Nature de l'etablissement"]];
 var codeNAF, companyName, address, postalCode, city, pays, natureEtablissement;
-var companyObject;
+
+//Default features for every company
+address = "Unknown"
+postalCode = "Unknown"
+city = "Unknown"
+pays = "Unknown"
+codeNAF = "Unknown"
+natureEtablissement = "Unknown"
+companyName = "Unknown"
 
 
+//Read csv file, with headers.
 csv
 .fromPath("Companies_DPE.csv", {headers : true} )
 .on("data", function(arrayCompanies){
@@ -22,29 +28,21 @@ csv
 .on("end", function(){
   console.log("done");
 
-  //console.log(inputCompanies);
-
-        uploader(1390);
+  //Call our recursive function.
+  getCompanyForLine(0);
 
 
 }); //Ending CSV Parsing callback
 
 
-
-
-function findValue(tablee, text){
-  //var i = 0;
-  for(i = 0; i < tablee[0].length; i++){
-    //console.log(tablee[0][i] );
-    if(tablee[0][i] == text){
-      return tablee[1][i];
-    }
-
-  }
-  return "Unknown";
-}
-
-
+/**
+* This function is used in the recursive function getCompanyForLine.
+* Indeed, we will get a first time the name of the company but we will need to put it in the url after that.
+* Exemple : the company name is "La belle tat'a". The return will be : "la-belle-tat-a"
+*
+* @param companyName : The name of the company that we want to clean.
+* return the company name cleaned.
+*/
 function cleanName(companyName){
   // _ espaces dans le nom d'entreprise
   companyName=companyName.replace(/[ \u00A0\u1680​\u180e\u2000-\u2009\u200a​\u200b​\u202f\u205f​\u3000]/g,'-')
@@ -60,111 +58,73 @@ function cleanName(companyName){
 
 
 
+/**
+*
+* This function is a recursive function.
+* For each line, we retrieve SIRET number and look for the correspondant company in the website societe.com.
+* If the siret is wrong, it will name every feature of the company "Unknown".
+*
+* @param i : the line of the csv file.
+*/
+function getCompanyForLine(i) {
 
-function uploader(i) {
+  //Default features for every company
+  address = "Unknown"
+  postalCode = "Unknown"
+  city = "Unknown"
+  pays = "Unknown"
+  codeNAF = "Unknown"
+  natureEtablissement = "Unknown"
+  companyName = "Unknown"
 
-  // //console.log(isTrueSIREN(inputCompanies[i].siret.toString().substring(0, inputCompanies[i].siret.toString().length - 5)));
-  // while(isTrueSIREN(inputCompanies[i].siret.toString().substring(0, inputCompanies[i].siret.toString().length - 5)) == false){
-  // //  console.log( isTrueSIREN(inputCompanies[i].siret.toString().substring(0, inputCompanies[i].siret.toString().length - 5)));
-  //   i++;
-  //
-  // }
-//  console.log(i);
-
-//Default features for companies
-address = "‘Unknown’"
-postalCode = "Unknown"
-city = "Unknown"
-pays = "Unknown"
-codeNAF = "Unknown"
-natureEtablissement = "Unknown"
-companyName = "Unknown"
-
-console.log(inputCompanies.length);
-
-if(i< inputCompanies.length){
+  // Condition for recursivity.
+  if(i< inputCompanies.length){
 
 
-  //var isTrueSIREN = isTrueSIREN(inputCompanies[i].siret.toString().substring(0, siret.toString().length - 5));
 
-  siret  = inputCompanies[i].siret;
-  siren = siret.toString().substring(0, siret.toString().length - 5);
-  url = 'http://www.societe.com/cgi-bin/fiche/?rncs='+ siret.toString().substring(0, siret.toString().length - 5);
-  //console.log("Recherche du nom à partir du SIREN démarrée..");
-  console.log("Redirection sur " + url + " ...");
-  request(url, function (error, response, body) {
-    if(!error){
-      //console.log("Redirection effectuée.");
-      var $ = cheerio.load(body);
+    siret  = inputCompanies[i].siret;
+    siren = siret.toString().substring(0, siret.toString().length - 5);
+    url = 'http://www.societe.com/cgi-bin/fiche/?rncs='+ siret.toString().substring(0, siret.toString().length - 5);
 
-      $('#identite_deno').filter(function(){
-        var data = $(this);
-        companyName = data.text();
-      })
-
-      console.log(siren);
-
-      companyName = cleanName(companyName);
-
-      //Then we see the desired etablissement.
-      urlEtablissement = "http://www.societe.com/etablissements/" + companyName + "-" + siren + ".html";
-      console.log("Redirection vers " + urlEtablissement + " ...");
-      request(urlEtablissement, function (error, response, body) {
+    //The first request's goal is to get the name of the company, by the SIREN.
+    request(url, function (error, response, body) {
+      if(!error){
         var $ = cheerio.load(body);
 
-        //console.log("Redirection effectuée.");
-        $('#etabs').filter(function(){
+        $('#identite_deno').filter(function(){
           var data = $(this);
+          companyName = data.text();
+        })
 
-          //First Siret
-          data = data.children();
-          var j = 1;
-          //While the siret is'nt found
-          while (data.children().children().first().next().next().next().children().first().next().text() != siret) {
-            data = data.next();
-              j++;
-            //console.log(data.children().children().first().next().next().next().children().first().next().text());
-              if(j > 20){
-                //abandonment for this company
-                address = "‘Unknown’"
-                postalCode = "Unknown"
-                city = "Unknown"
-                pays = "Unknown"
-                codeNAF = "Unknown"
-                natureEtablissement = "Unknown"
-                companyName = "Unknown"
-                resultCompanies.push([siret, companyName, address, postalCode, city, pays, codeNAF, natureEtablissement]);
+        companyName = cleanName(companyName);
 
-                return "Error";
-              }
 
-          }
-          urlEnd = data.children().children().first().next().next().next().children().first().next().children().first().attr('href');
-
-        });
-
-        urlSiret = "http://www.societe.com" + urlEnd;
-
-        //Maintenant que nous avons retrouvé l'entreprise, nous allons sur l'url de cette entreprise et allons scraper tout ca.
-        //console.log(urlSiret);
-        request(urlSiret, function (error, response, html) {
-
-          //  console.log("Redirection vers : " + urlSiret + "...");
+        //Then, the second request's goal is to retrieve data of the current company from the societe.com.
+        request(url, function (error, response, body) {
           if(!error){
+            var $ = cheerio.load(body);
 
-            var $ = cheerio.load(html)
+            $('#etabs').filter(function(){
+              var data = $(this);
+              cheerioTableparser($);
 
-            cheerioTableparser($);
+              //Convert html div into an array.
+              var table = $('#etabs').parsetable(false, false, true);
 
-            var table = $('#etab').parsetable();
 
-            address = findValue(table, "Adresse");
-            postalCode = findValue(table, "Code postal");
-            city = findValue(table, "Ville");
-            pays = findValue(table, "Pays");
-            codeNAF = findValue(table, "Code ape (NAF)");
-            natureEtablissement = findValue(table, "Nature de l&apos;&#xFFFD;tablissement");
-            companyName = findValue(table, "Nom");
+              //Get the index of the SIRET in the array
+              var indexOfSiret = findIndexOfSIRET(table, siret);
+
+              //Get the value of the correspondant key.
+              address = findValueAfterThisSiretIndex(table, "Adresse", indexOfSiret);
+              postalCode = findValueAfterThisSiretIndex(table, "Code postal", indexOfSiret);
+              city = findValueAfterThisSiretIndex(table, "Ville", indexOfSiret);
+              pays = findValueAfterThisSiretIndex(table, "Pays", indexOfSiret);
+              codeNAF = findValueAfterThisSiretIndex(table, "Code ape (NAF)", indexOfSiret);
+              natureEtablissement = findValueAfterThisSiretIndex(table, "Nature de l&apos;&#xFFFD;tablissement", indexOfSiret);
+              //companyName = findValueAfterThisSiretIndex(table, "Nom", indexOfSiret);
+
+            });
 
             // console.log(address);
             // console.log(postalCode);
@@ -173,41 +133,74 @@ if(i< inputCompanies.length){
             // console.log(codeNAF);
             // console.log(natureEtablissement);
 
+            //Add a line in the csv file.
             resultCompanies.push([siret, companyName, address, postalCode, city, pays, codeNAF, natureEtablissement]);
+            console.log(companyName +" (" + i + "/" + inputCompanies.length + ") scrapped.");
+
+            //Go to the next company.
             uploader(i+1);
+
             var ws = fs.createWriteStream("resultCompanies.csv");
             csv
             .write(resultCompanies, {headers: true})
             .pipe(ws);
-
-
-            console.log(companyName +" (" + i + "/" + inputCompanies.length + ") scrapped.");
-
           }
           else {
             console.log("Erreur de connexion sur lien : " + urlSiret );
           }
 
-
-
-
-          //Ending Third callback
         });
 
+        //End of IF
+      }
+      else{
+        console.log("Erreur de connexion" );
+      }
 
-        //Ending Second callback
-      });
 
+      //First Request
+    });
+    //End of IF
+  }
 
-     }
-     else{
-       console.log("Erreur de connexion" );
-     }
-
-    //Ending first callback
-  });
-
-  //Fin du For
+  //Ending of function
 }
 
+
+function findIndexOfSIRET(table, siret){
+  for(var i =0; i<table[0].length;i++){
+
+    //If we Found a SIRET row and Value of SIRET corresponds to our desired SIRET
+    if(table[0][i] == "SIRET" && table[1][i] == siret){
+      return i;
+    }
+
+  }
+  return null;
 }
+
+
+function findValueAfterThisSiretIndex(tablee, text, siretIndex){
+  var timesFoundAddress = 0;
+  for(i = siretIndex; i < tablee[0].length; i++){
+
+    //The problem with Addresse is that this Key is quoted 2 times in the page. We want the second one and not the First one.
+    switch (tablee[0][i]) {
+      case "Adresse" :
+      if(text == "Adresse") timesFoundAddress++;
+      if(timesFoundAddress == 2){
+        return tablee[1][i];
+      }
+      break;
+
+      default:
+      if(tablee[0][i] == text)
+      return tablee[1][i];
+    }
+
+  }
+  return "Unknown";
+}
+
+
+//Copyright (c) 2017 Copyright Holder All Rights Reserved. ;)

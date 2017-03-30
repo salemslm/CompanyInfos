@@ -29,7 +29,7 @@ csv
   console.log("done");
 
   //Call our recursive function.
-  getCompanyForLine(0);
+  getCompanyForLine(5301);
 
 
 }); //Ending CSV Parsing callback
@@ -85,7 +85,7 @@ function getCompanyForLine(i) {
     siret  = inputCompanies[i].siret;
     siren = siret.toString().substring(0, siret.toString().length - 5);
     url = 'http://www.societe.com/cgi-bin/fiche/?rncs='+ siret.toString().substring(0, siret.toString().length - 5);
-
+    console.log(url);
     //The first request's goal is to get the name of the company, by the SIREN.
     request(url, function (error, response, body) {
       if(!error){
@@ -99,9 +99,6 @@ function getCompanyForLine(i) {
         companyName = cleanName(companyName);
 
 
-        //Then, the second request's goal is to retrieve data of the current company from the societe.com.
-        request(url, function (error, response, body) {
-          if(!error){
             var $ = cheerio.load(body);
 
             $('#etabs').filter(function(){
@@ -160,14 +157,7 @@ function getCompanyForLine(i) {
             csv
             .write(resultCompanies, {headers: true})
             .pipe(ws);
-          }
-          else {
-            console.log("Erreur de connexion sur lien : " + urlSiret );
-          }
 
-        });
-
-        //End of IF
       }
       else{
         console.log("Erreur de connexion" );
